@@ -1,3 +1,5 @@
+use muziekshaker::run;
+
 fn main() {
-    println!("muziekshaker");
+    pollster::block_on(run());
 }
