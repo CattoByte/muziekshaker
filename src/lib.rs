@@ -1,10 +1,9 @@
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-
-use wgpu::util::DeviceExt;
 
 mod camera;
 mod texture;
@@ -94,31 +93,12 @@ const INDICES: &[u16] = &[
     19, 20, 18,
 ];*/
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+/*const NUM_INSTANCES_PER_ROW: u32 = 10;
 const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
     0.0,
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
 );
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    view_proj: [[f32; 4]; 4], //This is needed because you can't use bytemuck with cgmath directly.
-}
-
-impl CameraUniform {
-    fn new() -> Self {
-        use cgmath::SquareMatrix;
-        Self {
-            view_proj: cgmath::Matrix4::identity().into(), //I feel kinda bad that I didn't immediately recognize what "identity" meant.
-        }
-    }
-
-    fn update_view_proj(&mut self, camera: &camera::Camera) {
-        self.view_proj = camera.build_view_projection_matrix().into();
-    }
-}
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -171,31 +151,30 @@ impl InstanceRaw {
             ],
         }
     }
-}
+}*/
 
 struct State {
+    // Basics
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
+
+    // Rendering
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    leaf_texture: texture::Texture,
-    leaf_bind_group: wgpu::BindGroup,
-    autumn_leaf_texture: texture::Texture,
-    autumn_leaf_bind_group: wgpu::BindGroup,
-    space_pressed: bool,
+    diffuse_texture: texture::Texture,
+    diffuse_bind_group: wgpu::BindGroup,
+
+    // Camera
     camera: camera::Camera,
-    camera_uniform: CameraUniform,
+    camera_controller: camera::CameraController,
+    camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    instances: Vec<Instance>,
-    instance_buffer: wgpu::Buffer,
-    depth_texture: texture::Texture,
 }
 
 impl State {
@@ -237,6 +216,14 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        let leaf_bytes = include_bytes!("leaf.webp");
+        let leaf_texture =
+            texture::Texture::from_bytes(&device, &queue, leaf_bytes, "leaf.webp").unwrap();
+        let autumn_leaf_bytes = include_bytes!("autumn-leaf.webp");
+        let autumn_leaf_texture =
+            texture::Texture::from_bytes(&device, &queue, autumn_leaf_bytes, "leaf-autumn.webp")
+                .unwrap();
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -259,14 +246,6 @@ impl State {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-
-        let leaf_bytes = include_bytes!("leaf.webp");
-        let leaf_texture =
-            texture::Texture::from_bytes(&device, &queue, leaf_bytes, "leaf.webp").unwrap();
-        let autumn_leaf_bytes = include_bytes!("autumn-leaf.webp");
-        let autumn_leaf_texture =
-            texture::Texture::from_bytes(&device, &queue, autumn_leaf_bytes, "leaf-autumn.webp")
-                .unwrap();
 
         let leaf_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
@@ -307,8 +286,9 @@ impl State {
             znear: 0.1,
             zfar: 100.0,
         };
+        let camera_controller = camera::CameraController::new(0.05);
 
-        let mut camera_uniform = CameraUniform::new();
+        let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -353,15 +333,14 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let depth_texture =
-            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        //let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc(), InstanceRaw::desc()],
+                buffers: &[Vertex::desc()/* ,InstanceRaw::desc()*/],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -382,13 +361,13 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
+            depth_stencil: None/*Some(wgpu::DepthStencilState {
                 format: texture::Texture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
-            }),
+            })*/,
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -402,8 +381,6 @@ impl State {
             contents: bytemuck::cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
-        let num_vertices = VERTICES.len() as u32;
-
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
             contents: bytemuck::cast_slice(INDICES),
@@ -411,7 +388,7 @@ impl State {
         });
         let num_indices = INDICES.len() as u32;
 
-        let instances = (0..NUM_INSTANCES_PER_ROW)
+        /*let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 use cgmath::prelude::*;
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
@@ -440,7 +417,7 @@ impl State {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instance_data),
             usage: wgpu::BufferUsages::VERTEX,
-        });
+        });*/
 
         Self {
             surface,
@@ -450,21 +427,15 @@ impl State {
             size,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
             index_buffer,
             num_indices,
-            leaf_texture,
-            leaf_bind_group,
-            autumn_leaf_texture,
-            autumn_leaf_bind_group,
-            space_pressed: false,
+            diffuse_texture: leaf_texture,
+            diffuse_bind_group: leaf_bind_group,
             camera,
+            camera_controller,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            instances,
-            instance_buffer,
-            depth_texture,
         }
     }
 
@@ -474,13 +445,15 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-            self.depth_texture =
-                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
-        } //testing.
+
+            self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+            //self.depth_texture =
+              //  texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+        }
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
+        /*match event {
             WindowEvent::KeyboardInput {
                 input:
                     KeyboardInput {
@@ -495,10 +468,12 @@ impl State {
                 true
             }
             _ => false,
-        }
+        }*/
+        self.camera_controller.process_events(event)
     }
 
     fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_buffer,
@@ -535,32 +510,32 @@ impl State {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                depth_stencil_attachment: None/*Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
                     }),
                     stencil_ops: None,
-                }),
+                })*/,
             });
 
-            let texture_bind_group = if self.space_pressed {
+            /*let texture_bind_group = if self.space_pressed {
                 &self.autumn_leaf_bind_group
             } else {
                 &self.leaf_bind_group
-            };
+            };*/
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, texture_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            //render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as u32);
+            //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as u32);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
+
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
