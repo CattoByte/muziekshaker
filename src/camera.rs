@@ -54,7 +54,7 @@ pub struct CameraController {
     y_movement: f32,
     z_movement: f32,
     x_rotation: f32,
-    y_rotaiton: f32,
+    y_rotation: f32,
     z_rotation: f32,
     /*
         is_move_leftward_pressed: bool, // X
@@ -80,7 +80,7 @@ impl CameraController {
             y_movement: 0.0,
             z_movement: 0.0,
             x_rotation: 0.0,
-            y_rotaiton: 0.0,
+            y_rotation: 0.0,
             z_rotation: 0.0,
             /*
             is_move_upward_pressed: false,
@@ -139,28 +139,28 @@ impl CameraController {
                         self.z_movement = amount;
                         true
                     }
-                    VirtualKeyCode::O => {
+                    VirtualKeyCode::L => {
                         self.x_rotation = amount;
                         true
                     }
-                    VirtualKeyCode::U => {
+                    VirtualKeyCode::J => {
                         self.x_rotation = -amount;
                         true
                     }
-                    VirtualKeyCode::J => {
-                        self.z_rotation = -amount;
+                    VirtualKeyCode::U => {
+                        self.y_rotation = amount;
                         true
                     }
-                    VirtualKeyCode::L => {
-                        self.z_rotation = amount;
+                    VirtualKeyCode::O => {
+                        self.y_rotation = -amount;
                         true
                     }
                     VirtualKeyCode::I => {
-                        self.y_rotaiton = amount;
+                        self.z_rotation = -amount;
                         true
                     }
                     VirtualKeyCode::K => {
-                        self.y_rotaiton = -amount;
+                        self.z_rotation = amount;
                         true
                     }
                     _ => false,
@@ -207,10 +207,10 @@ impl CameraController {
         };
 
         camera.eye += Vector3::new(self.x_movement, self.y_movement, self.z_movement) * self.speed;
-        camera.target += Vector3::new(self.x_movement, self.y_movement, self.z_movement) * self.speed;
+        camera.target += Vector3::new(self.x_rotation + self.x_movement, self.y_movement + self.y_rotation, self.z_movement + self.z_rotation) * self.speed;
 
         //let (sin_pitch, cos_pitch) = self.x_rotation.sin_cos();
-        //let (sin_yaw, cos_yaw) = self.y_rotaiton.sin_cos();
+        //let (sin_yaw, cos_yaw) = self.y_rotation.sin_cos();
         //let (sin_roll, cos_roll) = self.z_rotation.sin_cos();
         //camera.target += Matrix4::look_to_rh(self.position, Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch, sin_yaw).normalize(), Vector3::unit_y(),)
 

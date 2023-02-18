@@ -6,6 +6,8 @@ use winit::{
 };
 
 mod camera;
+mod model;
+mod resources;
 mod texture;
 
 #[repr(C)]
@@ -93,7 +95,7 @@ const INDICES: &[u16] = &[
     19, 20, 18,
 ];*/
 
-/*const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 10;
 const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
     0.0,
@@ -151,7 +153,7 @@ impl InstanceRaw {
             ],
         }
     }
-}*/
+}
 
 struct State {
     // Basics
@@ -168,6 +170,8 @@ struct State {
     num_indices: u32,
     diffuse_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
+    depth_texture: texture::Texture,
+    obj_model: model::Model,
 
     // Camera
     camera: camera::Camera,
@@ -175,6 +179,10 @@ struct State {
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+
+    // Instancing
+    instances: Vec<Instance>,
+    instance_buffer: wgpu::Buffer,
 }
 
 impl State {
@@ -216,10 +224,10 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let leaf_bytes = include_bytes!("leaf.webp");
+        let leaf_bytes = include_bytes!("../res/leaf.webp");
         let leaf_texture =
             texture::Texture::from_bytes(&device, &queue, leaf_bytes, "leaf.webp").unwrap();
-        let autumn_leaf_bytes = include_bytes!("autumn-leaf.webp");
+        let autumn_leaf_bytes = include_bytes!("../res/autumn-leaf.webp");
         let autumn_leaf_texture =
             texture::Texture::from_bytes(&device, &queue, autumn_leaf_bytes, "leaf-autumn.webp")
                 .unwrap();
@@ -333,14 +341,16 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        //let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()/* ,InstanceRaw::desc()*/],
+                buffers: &[Vertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -361,13 +371,13 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None/*Some(wgpu::DepthStencilState {
+            depth_stencil: Some(wgpu::DepthStencilState {
                 format: texture::Texture::DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
-            })*/,
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -388,16 +398,15 @@ impl State {
         });
         let num_indices = INDICES.len() as u32;
 
-        /*let instances = (0..NUM_INSTANCES_PER_ROW)
+        const SPACE_BETWEEN: f32 = 3.0;
+        let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
-                use cgmath::prelude::*;
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = cgmath::Vector3 {
-                        x: x as f32,
-                        y: 0.0,
-                        z: z as f32,
-                    } - INSTANCE_DISPLACEMENT;
+                    use cgmath::prelude::*;
+                    let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 3.0);
+                    let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 3.0);
 
+                    let position = cgmath::Vector3 { x, y: 0.0, z };
                     let rotation = if position.is_zero() {
                         cgmath::Quaternion::from_axis_angle(
                             cgmath::Vector3::unit_z(),
@@ -417,7 +426,10 @@ impl State {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instance_data),
             usage: wgpu::BufferUsages::VERTEX,
-        });*/
+        });
+
+        let obj_model =
+            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
 
         Self {
             surface,
@@ -431,11 +443,15 @@ impl State {
             num_indices,
             diffuse_texture: leaf_texture,
             diffuse_bind_group: leaf_bind_group,
+            depth_texture,
+            obj_model,
             camera,
             camera_controller,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            instances,
+            instance_buffer,
         }
     }
 
@@ -447,8 +463,8 @@ impl State {
             self.surface.configure(&self.device, &self.config);
 
             self.camera.aspect = self.config.width as f32 / self.config.height as f32;
-            //self.depth_texture =
-              //  texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            self.depth_texture =
+                texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
@@ -510,14 +526,14 @@ impl State {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None/*Some(wgpu::RenderPassDepthStencilAttachment {
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
                     }),
                     stencil_ops: None,
-                })*/,
+                }),
             });
 
             /*let texture_bind_group = if self.space_pressed {
@@ -526,14 +542,19 @@ impl State {
                 &self.leaf_bind_group
             };*/
 
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            //render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as u32);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+
+            use model::DrawModel;
+            render_pass
+                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
+
+            /*render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // I know for a fact listening to ‘ゴ　チ　ャ　ゴ　チ　ャ　う　る　せ　ー　！　！　！’ can't be a good idea.
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);*/
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

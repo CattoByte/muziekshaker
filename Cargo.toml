@@ -12,6 +12,12 @@ log = "0.4"
 wgpu = "0.14"
 pollster = "0.2"
 bytemuck = { version = "1.12", features = [ "derive" ] }
-image = { version = "0.24.5", default-features = false, features = ["webp"] }
+image = { version = "0.24.5", default-features = false, features = ["webp", "jpeg", "png"] }
 anyhow = "1.0"
 cgmath = "0.18"
+tobj = "3.2.1"
+
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
