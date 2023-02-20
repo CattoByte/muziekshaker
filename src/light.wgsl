@@ -1,3 +1,5 @@
+// This is a debug shader to view light objects.
+
 struct Camera {
 	view_position: vec3<f32>,
 	view_proj: mat4x4<f32>,
@@ -27,7 +29,7 @@ fn vs_main(
 ) -> VertexOutput {
 	let scale = 0.25;
 	var out: VertexOutput;
-	out.clip_position = camera.view_proj * vec4<f32>(model.position * scale + light.position, 1.0); // This pretty much acts as a display for the light.
+	out.clip_position = camera.view_proj * vec4<f32>(model.position * scale + light.position, 1.0);
 	out.colour = light.colour;
 	return out;
 }

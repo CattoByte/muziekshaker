@@ -14,98 +14,7 @@ mod texture;
 
 use model::{DrawLight, DrawModel, Vertex};
 
-/*
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
-}
-
-impl Vertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        }
-    }
-}
-
-#[rustfmt::skip]
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.9,   -0.9,    0.0],   tex_coords: [0.0,   0.0] },
-    Vertex { position: [0.9,    -0.9,    0.0],   tex_coords: [1.0,   0.0] },
-    Vertex { position: [0.0,    0.9,   0.0],   tex_coords: [0.5,   1.0] },
-];
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.1,   -0.9,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.1,    -0.9,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.05,  -0.4,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.05,   -0.4,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.2,   -0.3,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.2,    -0.3,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.25,  -0.2,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.25,   -0.2,   0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.35,  0.0,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.35,   0.0,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.4,   0.2,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.4,    0.2,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.375, 0.4,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.375,  0.4,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.25,  0.6,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.25,   0.6,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.1,   0.8,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.1,    0.8,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [-0.05,  0.9,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.05,   0.9,    0.0],   tex_coords: [1.0,   1.0] },
-    Vertex { position: [0.0,    1.0,    0.0],   tex_coords: [1.0,   1.0] },
-];*/
-
-#[rustfmt::skip]
-const INDICES: &[u16] = &[
-    0, 1, 2,
-    2, 3, 0,
-];
-/*const INDICES: &[u16] = &[
-    0,  1,  2,
-    3,  2,  1,
-    2,  3,  4,
-    5,  4,  3,
-    4,  5,  6,
-    7,  6,  5,
-    6,  7,  8,  //here
-    9,  7,  8,
-    10,  9,  8,
-    11,  10, 9,
-    12, 11, 10,
-    13, 12, 11,
-    14, 13, 12,
-    15, 14, 13,
-    16, 15, 14,
-    17, 16, 15,
-    18, 17, 16,
-    19, 18, 17,
-    19, 20, 18,
-];*/
-
 const NUM_INSTANCES_PER_ROW: u32 = 5;
-const INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-    0.0,
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-);
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -233,7 +142,7 @@ fn create_render_pipeline(
 }
 
 struct State {
-    // Basic
+    // Essential
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -242,16 +151,17 @@ struct State {
 
     // Rendering
     render_pipeline: wgpu::RenderPipeline,
-    diffuse_texture: texture::Texture,
-    diffuse_bind_group: wgpu::BindGroup,
     depth_texture: texture::Texture,
+
     // Light
     light_render_pipeline: wgpu::RenderPipeline,
     light_uniform: light::LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
-    // Object
+
+    // Model
     obj_model: model::Model,
+
     // Camera
     camera: camera::Camera,
     camera_controller: camera::CameraController,
@@ -266,7 +176,7 @@ struct State {
 
 impl State {
     //Part of wgpu's initialization requires async code.
-    async fn new(window: &Window, render_mode: wgpu::PolygonMode) -> Self {
+    async fn new(window: &Window) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::Backends::all()); //VK + MTL + DX12 (and WebGPU, but that one won't be used)
@@ -303,14 +213,6 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let leaf_bytes = include_bytes!("../res/leaf.webp");
-        let leaf_texture =
-            texture::Texture::from_bytes(&device, &queue, leaf_bytes, "leaf.webp").unwrap();
-        let autumn_leaf_bytes = include_bytes!("../res/autumn-leaf.webp");
-        let autumn_leaf_texture =
-            texture::Texture::from_bytes(&device, &queue, autumn_leaf_bytes, "leaf-autumn.webp")
-                .unwrap();
-
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -333,36 +235,6 @@ impl State {
                 ],
                 label: Some("texture_bind_group_layout"),
             });
-
-        let leaf_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&leaf_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&leaf_texture.sampler),
-                },
-            ],
-            label: Some("leaf_bind_group"),
-        });
-
-        let autumn_leaf_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&autumn_leaf_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&autumn_leaf_texture.sampler),
-                },
-            ],
-            label: Some("autumn_leaf_bind_group"),
-        });
 
         let camera = camera::Camera {
             eye: (0.0, 1.0, 2.0).into(),
@@ -446,14 +318,6 @@ impl State {
             label: None,
         });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        }); // maybe replace the shader module with 'wgpu::include_wgsl!("shader.wgsl")'?
-
-        let depth_texture =
-            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
-
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -466,6 +330,7 @@ impl State {
             });
 
         let render_pipeline = {
+            // Look into replacing the shader module with ‘wgpu::include_wgsl!("shader.wgsl")’.
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Default Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -479,6 +344,9 @@ impl State {
                 shader,
             )
         };
+
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let light_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -500,19 +368,6 @@ impl State {
             )
         };
 
-        /*
-                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Vertex Buffer"),
-                    contents: bytemuck::cast_slice(VERTICES),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(INDICES),
-                    usage: wgpu::BufferUsages::INDEX,
-                });
-                let num_indices = INDICES.len() as u32;
-        */
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
@@ -552,8 +407,6 @@ impl State {
             config,
             size,
             render_pipeline,
-            diffuse_texture: leaf_texture,
-            diffuse_bind_group: leaf_bind_group,
             depth_texture,
             light_render_pipeline,
             light_uniform,
@@ -584,22 +437,6 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        /*match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    },
-                ..
-            } => {
-                self.space_pressed = *state == ElementState::Pressed;
-                println!("{}", self.space_pressed);
-                true
-            }
-            _ => false,
-        }*/
         self.camera_controller.process_events(event)
     }
 
@@ -662,12 +499,6 @@ impl State {
                 }),
             });
 
-            /*let texture_bind_group = if self.space_pressed {
-                &self.autumn_leaf_bind_group
-            } else {
-                &self.leaf_bind_group
-            };*/
-
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             render_pass.set_pipeline(&self.light_render_pipeline);
@@ -685,12 +516,9 @@ impl State {
                 &self.light_bind_group,
             );
 
-            /*render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // I know for a fact listening to ‘ゴ　チ　ャ　ゴ　チ　ャ　う　る　せ　ー　！　！　！’ can't be a good idea.
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);*/
+            // I want to mention how ‘ゴ　チ　ャ　ゴ　チ　ャ　う　る　せ　ー　！　！　！’ may have
+            // affected this section's code quality.
         }
-
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
@@ -703,8 +531,7 @@ pub async fn run() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut render_mode = wgpu::PolygonMode::Fill;
-    let mut state = State::new(&window, render_mode).await;
+    let mut state = State::new(&window).await;
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
@@ -729,28 +556,6 @@ pub async fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::F1),
-                                ..
-                            },
-                        ..
-                    } => {
-                        if render_mode == wgpu::PolygonMode::Fill {
-                            render_mode = wgpu::PolygonMode::Line;
-                        } else if render_mode == wgpu::PolygonMode::Line {
-                            render_mode = wgpu::PolygonMode::Point;
-                        } else {
-                            render_mode = wgpu::PolygonMode::Fill;
-                        }
-                        pollster::block_on(async {
-                            //todo!(); //This is absolutely deplorable, move this into the state itself.
-                            //It literally brings up a wgpu error but somehow keeps running.
-                            state = State::new(&window, render_mode).await;
-                        });
-                    }
                     _ => {}
                 }
             }
@@ -774,16 +579,3 @@ pub async fn run() {
         _ => {}
     });
 }
-
-/*
- * What might be the issue:
- *  resources.rs    No.
- *  model.rs        Doubt it.
- *  lib.rs          ???
- *  texture.rs      No?
- *  shader.wgsl     No.
- *
- *  It's probably the fact that I'm not using the vertex layout from the model and am instead
- *  relying on the pre-existing layout (which is unaware of normal textures).
- *  It's probably just treating normal textures as more model data.
- */

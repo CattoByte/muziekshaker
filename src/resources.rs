@@ -3,9 +3,6 @@ use wgpu::util::DeviceExt;
 
 use crate::{model, texture};
 
-// Things could be shortened by putting things into the "Ok" function.
-// Going with the "anyhow" library (like I should've done from the beginning, lol).
-
 pub fn load_string(file_name: &str) -> anyhow::Result<String> {
     let path = std::path::Path::new(env!("OUT_DIR"))
         .join("res")

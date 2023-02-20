@@ -1,3 +1,5 @@
+// The default shader.
+
 // Vertex shader
 
 struct Camera {
