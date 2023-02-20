@@ -10,6 +10,9 @@ mod model;
 mod resources;
 mod texture;
 
+use model::{DrawModel, Vertex};
+
+/*
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
@@ -44,7 +47,7 @@ const VERTICES: &[Vertex] = &[
     Vertex { position: [0.9,    -0.9,    0.0],   tex_coords: [1.0,   0.0] },
     Vertex { position: [0.0,    0.9,   0.0],   tex_coords: [0.5,   1.0] },
 ];
-/*const VERTICES: &[Vertex] = &[
+const VERTICES: &[Vertex] = &[
     Vertex { position: [-0.1,   -0.9,   0.0],   tex_coords: [1.0,   1.0] },
     Vertex { position: [0.1,    -0.9,   0.0],   tex_coords: [1.0,   1.0] },
     Vertex { position: [-0.05,  -0.4,   0.0],   tex_coords: [1.0,   1.0] },
@@ -156,7 +159,7 @@ impl InstanceRaw {
 }
 
 struct State {
-    // Basics
+    // Basic
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -165,9 +168,9 @@ struct State {
 
     // Rendering
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    //vertex_buffer: wgpu::Buffer,
+    //index_buffer: wgpu::Buffer,
+    //num_indices: u32,
     diffuse_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
     depth_texture: texture::Texture,
@@ -350,7 +353,7 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc(), InstanceRaw::desc()],
+                buffers: &[model::ModelVertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -386,18 +389,19 @@ impl State {
             multiview: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
-
+        /*
+                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Vertex Buffer"),
+                    contents: bytemuck::cast_slice(VERTICES),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Index Buffer"),
+                    contents: bytemuck::cast_slice(INDICES),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+                let num_indices = INDICES.len() as u32;
+        */
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
@@ -438,9 +442,9 @@ impl State {
             config,
             size,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
+            //vertex_buffer,
+            //index_buffer,
+            //num_indices,
             diffuse_texture: leaf_texture,
             diffuse_bind_group: leaf_bind_group,
             depth_texture,
@@ -544,12 +548,16 @@ impl State {
 
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            use model::DrawModel;
-            render_pass
-                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
+            let mesh = &self.obj_model.meshes[0];
+            let material = &self.obj_model.materials[mesh.material];
+
+            render_pass.draw_mesh_instanced(
+                mesh,
+                material,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+            );
 
             /*render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
@@ -640,3 +648,16 @@ pub async fn run() {
         _ => {}
     });
 }
+
+/*
+ * What might be the issue:
+ *  resources.rs    No.
+ *  model.rs        Doubt it.
+ *  lib.rs          ???
+ *  texture.rs      No?
+ *  shader.wgsl     No.
+ *
+ *  It's probably the fact that I'm not using the vertex layout from the model and am instead
+ *  relying on the pre-existing layout (which is unaware of normal textures).
+ *  It's probably just treating normal textures as more model data.
+ */

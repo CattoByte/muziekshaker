@@ -175,22 +175,22 @@ impl CameraController {
         //let forward_normal = forward.normalize();
         //let forward_magnitude = forward.magnitude();
         //let right = Vector3::new(1.0, 0.0, 0.0); // To do: derive from the camera's up value.
-                                                 /*let up = forward_normal.cross(right); // Optimize this utter garbage.
-                                                         if self.is_upward_pressed {
-                                                             camera.eye =
-                                                                 camera.target - (forward + up * self.speed).normalize() * forward_magnitude;
-                                                         }
-                                                         if self.is_downward_pressed {
-                                                             camera.eye =
-                                                                 camera.target - (forward - up * self.speed).normalize() * forward_magnitude;
-                                                             camera.target =
-                                                                 camera.eye - (forward + up * self.speed).normalize() * forward_magnitude;
-                                                         }
+        /*let up = forward_normal.cross(right); // Optimize this utter garbage.
+                if self.is_upward_pressed {
+                    camera.eye =
+                        camera.target - (forward + up * self.speed).normalize() * forward_magnitude;
+                }
+                if self.is_downward_pressed {
+                    camera.eye =
+                        camera.target - (forward - up * self.speed).normalize() * forward_magnitude;
+                    camera.target =
+                        camera.eye - (forward + up * self.speed).normalize() * forward_magnitude;
+                }
 
-                                                         let forward = camera.target - camera.eye;
-                                                         let forward_normal = forward.normalize();
-                                                         // (Here took the place a magnitude calculation that was not needed.)
-                                                 */
+                let forward = camera.target - camera.eye;
+                let forward_normal = forward.normalize();
+                // (Here took the place a magnitude calculation that was not needed.)
+        */
         let print_camera_info = |camera: &mut Camera| {
             // Closures are hard.
             return;
@@ -207,7 +207,11 @@ impl CameraController {
         };
 
         camera.eye += Vector3::new(self.x_movement, self.y_movement, self.z_movement) * self.speed;
-        camera.target += Vector3::new(self.x_rotation + self.x_movement, self.y_movement + self.y_rotation, self.z_movement + self.z_rotation) * self.speed;
+        camera.target += Vector3::new(
+            self.x_rotation + self.x_movement,
+            self.y_movement + self.y_rotation,
+            self.z_movement + self.z_rotation,
+        ) * self.speed;
 
         //let (sin_pitch, cos_pitch) = self.x_rotation.sin_cos();
         //let (sin_yaw, cos_yaw) = self.y_rotation.sin_cos();
