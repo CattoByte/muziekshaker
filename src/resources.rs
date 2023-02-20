@@ -54,7 +54,7 @@ pub fn load_model(
             let mat_text = load_string(p.to_str().unwrap()).unwrap();
             tobj::load_mtl_buf(&mut BufReader::new(Cursor::new(mat_text)))
         },
-        )?;
+    )?;
 
     let mut materials = Vec::new();
     for m in obj_materials? {
