@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use crate::texture;
+use crate::object; // Consider refactoring (both files call each other).
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
@@ -61,13 +62,13 @@ impl Vertex for ModelVertex {
 }
 
 pub trait DrawModel<'a> {
-    fn draw_mesh(
+    /*fn draw_mesh(
         &mut self,
         mesh: &'a Mesh,
         material: &'a Material,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
-    );
+    );*/
     fn draw_mesh_instanced(
         &mut self,
         mesh: &'a Mesh,
@@ -77,12 +78,12 @@ pub trait DrawModel<'a> {
         light_bind_group: &'a wgpu::BindGroup,
     );
 
-    fn draw_model(
+    /*fn draw_model(
         &mut self,
         model: &'a Model,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
-    );
+    );*/
     fn draw_model_instanced(
         &mut self,
         model: &'a Model,
@@ -96,7 +97,7 @@ impl<'a, 'b> DrawModel<'b> for wgpu::RenderPass<'a>
 where
     'b: 'a,
 {
-    fn draw_mesh(
+    /*fn draw_mesh(
         &mut self,
         mesh: &'b Mesh,
         material: &'a Material,
@@ -104,7 +105,7 @@ where
         light_bind_group: &'a wgpu::BindGroup,
     ) {
         self.draw_mesh_instanced(mesh, material, 0..1, camera_bind_group, light_bind_group);
-    }
+    }*/
 
     fn draw_mesh_instanced(
         &mut self,
@@ -122,14 +123,14 @@ where
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
-    fn draw_model(
+    /*fn draw_model(
         &mut self,
         model: &'b Model,
         camera_bind_group: &'a wgpu::BindGroup,
         light_bind_group: &'a wgpu::BindGroup,
     ) {
         self.draw_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
-    }
+    }*/
 
     fn draw_model_instanced(
         &mut self,

@@ -1,4 +1,4 @@
-// The default shader.
+// The Blinn-Phong reflection model.
 
 // Vertex shader
 
