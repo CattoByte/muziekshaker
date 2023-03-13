@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -100,9 +102,6 @@ struct State {
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-
-    // Instancing
-    instance_buffer: wgpu::Buffer,
 }
 
 impl State {
@@ -317,8 +316,9 @@ impl State {
             )
         };
 
-        const SPACE_BETWEEN: f32 = 3.0;
+        let mut objects = Vec::<object::Object>::new(); // Here (the following empty line, really), I compiled by accident. Force of habit, I guess.
 
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
@@ -332,45 +332,54 @@ impl State {
                             cgmath::Deg(0.0),
                         )
                     } else {
-                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                        cgmath::Quaternion::from_axis_angle(
+                            (0.0, 0.0, 0.0).into(),
+                            cgmath::Deg(0.0),
+                        )
+                        //cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                     };
 
                     object::Instance { position, rotation }
                 })
             })
             .collect::<Vec<_>>();
+        let cube_data =
+            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
+        let cube_object = object::Object::new(
+            String::from("cube"),
+            object::ObjectType::Model(cube_data),
+            object::ObjectPipeline::Shaded,
+            object::ProjectionType::Orthographic,
+            instances,
+            None,
+            &device,
+        );
+        objects.push(cube_object);
+
         let mut instances = Vec::<object::Instance>::new();
         instances.push(object::Instance {
             position: cgmath::Vector3 {
-                x: 3.0,
-                y: 0.0,
+                x: 0.0,
+                y: 3.0,
                 z: 0.0,
             },
             rotation: cgmath::Quaternion::from_axis_angle(
                 cgmath::Vector3::unit_z(),
-                cgmath::Deg(0.0),
+                cgmath::Deg(45.0),
             ),
         });
-
-        let mut objects = Vec::<object::Object>::new();
         let cube_data =
             resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
-        let cube_object = object::Object {
-            name: String::from("cube"),
-            data: object::ObjectType::Model(cube_data),
-            pipeline: object::ObjectPipeline::Shaded,
-            projection: object::ProjectionType::Orthographic,
+        let cube_object = object::Object::new(
+            String::from("cube2"),
+            object::ObjectType::Model(cube_data),
+            object::ObjectPipeline::Flat,
+            object::ProjectionType::Perspective,
             instances,
-            custom_data: None,
-        };
+            None,
+            &device,
+        );
         objects.push(cube_object);
-
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: &[],
-            //contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
 
         Self {
             surface,
@@ -391,7 +400,6 @@ impl State {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            instance_buffer,
         }
     }
 
@@ -431,6 +439,33 @@ impl State {
             0,
             bytemuck::cast_slice(&[self.light_uniform]),
         );
+
+        let time_in_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let variable = (time_in_ms as f64 / 1000.0).sin() as f32 * 1.5;
+        let variable2 = (time_in_ms as f64 / 500.0).sin() as f32;
+
+        for object in self.objects.iter_mut() {
+            for (index, instance) in object.instances.iter_mut().enumerate() {
+                *instance = object::Instance {
+                    position: (cgmath::Quaternion::from_axis_angle(
+                        (0.0, 0.0, variable2 * 0.0075).into(),
+                        cgmath::Deg(index as f32),
+                    ) * instance.position)
+                        .into(),
+                    rotation: instance.rotation
+                        * cgmath::Quaternion::from_axis_angle(
+                            (1.0, 0.5, variable2 * 0.0075).into(),
+                            cgmath::Deg(variable),
+                        ),
+                };
+            }
+        }
+
+        self.objects[0].update_instance_buffer(&self.device);
+        self.objects[1].update_instance_buffer(&self.device);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -444,8 +479,7 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        for object in &self.objects {
-            let instance_buffer;
+        {
             //Needed to release mutable borrow
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -472,43 +506,31 @@ impl State {
                 }),
             });
 
-            let instance_data = object
-                .instances
-                .iter()
-                .map(object::Instance::to_raw)
-                .collect::<Vec<_>>();
+            for object in &self.objects {
+                let selected_pipeline = match &object.pipeline {
+                    object::ObjectPipeline::Flat => &self.flat_pipeline,
+                    object::ObjectPipeline::Shaded => &self.blinn_pipeline,
+                };
 
-            instance_buffer = self
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Instance Buffer"),
-                    contents: bytemuck::cast_slice(&instance_data),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                });
-
-            let selected_pipeline = match &object.pipeline {
-                object::ObjectPipeline::Flat => &self.flat_pipeline,
-                object::ObjectPipeline::Shaded => &self.blinn_pipeline,
-            };
-
-            match &object.data {
-                object::ObjectType::Mesh(mesh_data) => {
-                    unimplemented!();
+                match &object.data {
+                    object::ObjectType::Mesh(mesh_data) => {
+                        unimplemented!();
+                    }
+                    object::ObjectType::Model(model_data) => {
+                        render_pass.set_pipeline(selected_pipeline);
+                        render_pass.set_vertex_buffer(1, object.instance_buffer.slice(..));
+                        render_pass.draw_model_instanced(
+                            &model_data,
+                            (0..object.instances.len() as u32),
+                            &self.camera_bind_group,
+                            &self.light_bind_group,
+                        );
+                    }
                 }
-                object::ObjectType::Model(model_data) => {
-                    render_pass.set_pipeline(selected_pipeline);
-                    render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                    render_pass.draw_model_instanced(
-                        &model_data,
-                        (0..object.instances.len() as u32),
-                        &self.camera_bind_group,
-                        &self.light_bind_group,
-                    );
-                }
+
+                // I want to mention how ‘ゴ　チ　ャ　ゴ　チ　ャ　う　る　せ　ー　！　！　！’ may have
+                // affected this section's code quality.
             }
-
-            // I want to mention how ‘ゴ　チ　ャ　ゴ　チ　ャ　う　る　せ　ー　！　！　！’ may have
-            // affected this section's code quality.
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

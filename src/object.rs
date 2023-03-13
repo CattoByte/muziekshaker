@@ -1,4 +1,5 @@
 use cgmath::*;
+use wgpu::util::DeviceExt;
 
 use crate::model;
 
@@ -72,7 +73,6 @@ impl InstanceRaw {
     }
 }
 
-
 pub enum ObjectType {
     Mesh(model::Mesh),
     Model(model::Model),
@@ -99,20 +99,48 @@ pub struct Object {
     pub pipeline: ObjectPipeline,
     pub projection: ProjectionType,
     pub instances: Vec<Instance>,
+    pub instance_buffer: wgpu::Buffer,
     pub custom_data: Option<CustomData>,
 }
 
-/*impl Object {
-    pub fn update_instances(&self, instance_buffer: &wgpu::Buffer) {
+impl Object {
+    pub fn new(
+        name: String,
+        data: ObjectType,
+        pipeline: ObjectPipeline,
+        projection: ProjectionType,
+        instances: Vec<Instance>,
+        custom_data: Option<CustomData>,
+        device: &wgpu::Device,
+    ) -> Self {
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
+        Self {
+            name,
+            data,
+            pipeline,
+            projection,
+            instances,
+            instance_buffer,
+            custom_data,
+        }
+    }
+
+    pub fn update_instance_buffer(&mut self, device: &wgpu::Device) {
         let instance_data = self
             .instances
             .iter()
             .map(Instance::to_raw)
             .collect::<Vec<_>>();
-        instance_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        self.instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instance_data),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
     }
-}*/
+}

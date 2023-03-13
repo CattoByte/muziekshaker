@@ -27,6 +27,13 @@ impl Camera {
 
         proj * view
     }
+
+    pub fn build_view_orthographic_matrix(&self) -> Matrix4<f32> {
+        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
+        let proj = ortho(-self.fovy/5.0, self.fovy/5.0, -self.fovy/5.0, self.fovy/5.0, self.znear, self.zfar);
+
+        proj * view
+    }
 }
 
 #[repr(C)]
