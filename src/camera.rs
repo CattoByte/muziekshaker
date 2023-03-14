@@ -9,37 +9,45 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.5, 1.0,
 );
 
+pub enum ProjectionType {
+    Orthographic,
+    Perspective,
+}
+
 // I should probably make a new() function for this...
 pub struct Camera {
     pub eye: Point3<f32>,
     pub target: Point3<f32>,
     pub up: Vector3<f32>,
     pub aspect: f32,
+    pub projection: ProjectionType,
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self) -> Matrix4<f32> {
-        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
-
-        proj * view
-    }
-
-    pub fn build_view_orthographic_matrix(&self) -> Matrix4<f32> {
-        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = ortho(
-            -self.fovy / 5.0,
-            self.fovy / 5.0,
-            -self.fovy / 5.0,
-            self.fovy / 5.0,
-            self.znear,
-            self.zfar,
-        );
-
-        proj * view
+    pub fn build_view_matrix(&self) -> Matrix4<f32> {
+        match self.projection {
+            ProjectionType::Orthographic => {
+                let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
+                let adjusted_fov = self.fovy / 20.0;
+                let proj = ortho(
+                    -adjusted_fov * self.aspect,
+                    adjusted_fov * self.aspect,
+                    -adjusted_fov,
+                    adjusted_fov,
+                    self.znear,
+                    self.zfar,
+                );
+                proj * view
+            }
+            ProjectionType::Perspective => {
+                let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
+                let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
+                proj * view
+            }
+        }
     }
 }
 
@@ -60,7 +68,7 @@ impl CameraUniform {
 
     pub fn update_view_proj(&mut self, camera: &Camera) {
         self.view_position = camera.eye.to_homogeneous().into();
-        self.view_proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix()).into();
+        self.view_proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_matrix()).into();
     }
 }
 

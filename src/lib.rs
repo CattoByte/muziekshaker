@@ -1,11 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cgmath::prelude::*;
-use game_loop::winit::{
-    event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
-};
+use game_loop::winit::event::*;
+use game_loop::winit::window::Window;
 use wgpu::util::DeviceExt;
 
 mod camera;
@@ -171,6 +168,7 @@ impl State {
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
+            projection: camera::ProjectionType::Perspective,
             fovy: 90.0,
             znear: 0.1,
             zfar: 100.0,
@@ -417,6 +415,28 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(keycode),
+                        ..
+                    },
+                ..
+            } => match keycode {
+                VirtualKeyCode::F1 => {
+                    self.camera.projection = match self.camera.projection {
+                        camera::ProjectionType::Orthographic => camera::ProjectionType::Perspective,
+                        camera::ProjectionType::Perspective => camera::ProjectionType::Orthographic,
+                    };
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+
         self.camera_controller.process_events(event)
     }
 
