@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-use crate::texture;
-use crate::object; // Consider refactoring (both files call each other).
+use crate::object;
+use crate::texture; // Consider refactoring (both files call each other).
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;

@@ -1,12 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cgmath::prelude::*;
-use wgpu::util::DeviceExt;
-use winit::{
+use game_loop::winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
+use wgpu::util::DeviceExt;
 
 mod camera;
 mod light;
@@ -74,13 +74,13 @@ fn create_render_pipeline(
     })
 }
 
-struct State {
+pub struct State {
     // Essential
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
+    size: game_loop::winit::dpi::PhysicalSize<u32>,
 
     // Rendering
     flat_pipeline: wgpu::RenderPipeline,
@@ -106,7 +106,7 @@ struct State {
 
 impl State {
     //Part of wgpu's initialization requires async code.
-    async fn new(window: &Window) -> Self {
+    pub async fn new(window: &Window) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::Backends::all()); //VK + MTL + DX12 (and WebGPU, but that one won't be used)
@@ -403,7 +403,7 @@ impl State {
         }
     }
 
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, new_size: game_loop::winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -420,7 +420,7 @@ impl State {
         self.camera_controller.process_events(event)
     }
 
-    fn update(&mut self) {
+    pub fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
@@ -468,7 +468,7 @@ impl State {
         self.objects[1].update_instance_buffer(&self.device);
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -537,21 +537,49 @@ impl State {
 
         Ok(())
     }
+
+    pub fn window_handler(&mut self, event: &Event<()>) -> bool {
+        match event {
+            Event::WindowEvent { ref event, .. } => {
+                // Continue if the event does not handle the camera.
+                if !self.input(event) {
+                    match event {
+                        WindowEvent::CloseRequested
+                        | WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                                    ..
+                                },
+                            ..
+                        } => {
+                            return false;
+                        }
+                        WindowEvent::Resized(physical_size) => {
+                            self.resize(*physical_size);
+                        }
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            self.resize(**new_inner_size);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        true
+    }
 }
-
-pub async fn run() {
-    env_logger::init();
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-
-    let mut state = State::new(&window).await;
-
-    event_loop.run(move |event, _, control_flow| match event {
+/*
+fn window_handler(&self, window: &Window, event: &Event<_>) -> bool {
+    //env_logger::init();
+    match event {
         Event::WindowEvent {
             ref event,
             window_id,
         } if (window_id == window.id()) => {
-            if !state.input(event) {
+            if !self.input(event) {
                 match event {
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
@@ -590,5 +618,5 @@ pub async fn run() {
             window.request_redraw();
         }
         _ => {}
-    });
-}
+    }
+}*/
