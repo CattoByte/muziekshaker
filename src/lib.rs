@@ -82,6 +82,7 @@ pub struct State {
     // Rendering
     flat_pipeline: wgpu::RenderPipeline,
     blinn_pipeline: wgpu::RenderPipeline,
+    cell_pipeline: wgpu::RenderPipeline,
     depth_texture: texture::Texture,
 
     // Light
@@ -248,7 +249,11 @@ impl State {
 
         let flat_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Flat Pipeline Layout"),
-            bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+            bind_group_layouts: &[
+                &texture_bind_group_layout,
+                &camera_bind_group_layout,
+                &light_bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
         let flat_pipeline = {
@@ -284,6 +289,30 @@ impl State {
             create_render_pipeline(
                 &device,
                 &blinn_pipeline_layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[model::ModelVertex::desc(), object::InstanceRaw::desc()],
+                shader,
+            )
+        };
+
+        let cell_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Cell Pipeline Layout"),
+            bind_group_layouts: &[
+                &texture_bind_group_layout,
+                &camera_bind_group_layout,
+                &light_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+        let cell_pipeline = {
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Cell Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/cell.wgsl").into()),
+            };
+            create_render_pipeline(
+                &device,
+                &cell_pipeline_layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc(), object::InstanceRaw::desc()],
@@ -379,6 +408,31 @@ impl State {
         );
         objects.push(cube_object);
 
+        let mut instances = Vec::<object::Instance>::new();
+        instances.push(object::Instance {
+            position: cgmath::Vector3 {
+                x: 3.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            rotation: cgmath::Quaternion::from_axis_angle(
+                cgmath::Vector3::unit_z(),
+                cgmath::Deg(45.0),
+            ),
+        });
+        let cube_data =
+            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
+        let cube_object = object::Object::new(
+            String::from("cube3"),
+            object::ObjectType::Model(cube_data),
+            object::ObjectPipeline::Cell,
+            object::ProjectionType::Perspective,
+            instances,
+            None,
+            &device,
+        );
+        objects.push(cube_object);
+
         Self {
             surface,
             device,
@@ -387,6 +441,7 @@ impl State {
             size,
             flat_pipeline,
             blinn_pipeline,
+            cell_pipeline,
             depth_texture,
             light_render_pipeline,
             light_uniform,
@@ -530,6 +585,7 @@ impl State {
                 let selected_pipeline = match &object.pipeline {
                     object::ObjectPipeline::Flat => &self.flat_pipeline,
                     object::ObjectPipeline::Shaded => &self.blinn_pipeline,
+                    object::ObjectPipeline::Cell => &self.cell_pipeline,
                 };
 
                 match &object.data {

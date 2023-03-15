@@ -81,6 +81,7 @@ pub enum ObjectType {
 pub enum ObjectPipeline {
     Flat,
     Shaded,
+    Cell,
 }
 
 pub enum ProjectionType {
